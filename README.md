@@ -1,3 +1,11 @@
+This is a **fork** of the upstream repository of Stalwart's webadmin
+software. The default branch (agpl) is intended to only ever contain
+AGPL licensed code.
+
+<details>
+
+<summary>Original README text for Stalwart Webadmin</summary>
+
 <p align="center">
     <a href="https://stalw.art">
     <img src="./img/logo-red.svg" height="150">
@@ -88,3 +96,5 @@ Each file in this project contains a license notice at the top, indicating the a
 ## Copyright
 
 Copyright (C) 2024, Stalwart Labs Ltd.
+
+</details>

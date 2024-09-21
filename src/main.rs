@@ -27,11 +27,6 @@ use pages::{
         mfa::ManageMfa,
     },
     config::edit::DEFAULT_SETTINGS_URL,
-    enterprise::{
-        dashboard::Dashboard,
-        tracing::{display::SpanDisplay, list::SpanList, live::LiveTracing},
-        undelete::UndeleteList,
-    },
     manage::spam::{SpamTest, SpamTrain},
 };
 
@@ -158,12 +153,6 @@ pub fn App() -> impl IntoView {
                     condition=move || is_logged_in.get()
                 >
                     <ProtectedRoute
-                        path="/dashboard/:object?"
-                        view=Dashboard
-                        redirect_path="/login"
-                        condition=move || is_admin.get()
-                    />
-                    <ProtectedRoute
                         path="/directory/domains"
                         view=DomainList
                         redirect_path="/login"
@@ -251,30 +240,6 @@ pub fn App() -> impl IntoView {
                     <ProtectedRoute
                         path="/maintenance"
                         view=Maintenance
-                        redirect_path="/login"
-                        condition=move || is_admin.get()
-                    />
-                    <ProtectedRoute
-                        path="/undelete/:id"
-                        view=UndeleteList
-                        redirect_path="/login"
-                        condition=move || is_admin.get()
-                    />
-                    <ProtectedRoute
-                        path="/tracing/span/:id"
-                        view=SpanDisplay
-                        redirect_path="/login"
-                        condition=move || is_admin.get()
-                    />
-                    <ProtectedRoute
-                        path="/tracing/live"
-                        view=LiveTracing
-                        redirect_path="/login"
-                        condition=move || is_admin.get()
-                    />
-                    <ProtectedRoute
-                        path="/tracing/:object"
-                        view=SpanList
                         redirect_path="/login"
                         condition=move || is_admin.get()
                     />
@@ -502,7 +467,6 @@ pub fn build_schemas() -> Arc<Schemas> {
         .build_authorize()
         .build_mfa()
         .build_app_passwords()
-        .build_live_tracing()
         .build()
         .into()
 }

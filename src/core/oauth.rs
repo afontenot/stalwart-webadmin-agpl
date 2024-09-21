@@ -4,25 +4,18 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
+use ahash::AHashSet;
 use leptos::{expect_context, RwSignal};
 use serde::{Deserialize, Serialize};
 
 use crate::components::messages::alert::Alert;
 
-use super::http::{self, HttpRequest};
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AuthToken {
-    pub base_url: Arc<String>,
-    pub access_token: Arc<String>,
-    pub refresh_token: Arc<String>,
-    pub username: Arc<String>,
-    pub is_valid: bool,
-    pub is_admin: bool,
-    pub is_enterprise: bool,
-}
+use super::{
+    http::{self, HttpRequest},
+    AccessToken, Permission,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -39,9 +32,16 @@ pub enum OAuthCodeRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OAuthCodeResponse {
     pub code: String,
-    pub is_admin: bool,
     #[serde(default)]
+    pub permissions: AHashSet<Permission>,
+
+    #[serde(default)]
+    #[serde(rename = "isEnterprise")]
     pub is_enterprise: bool,
+
+    // Deprecated - remove in future
+    #[serde(default)]
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -92,7 +92,7 @@ pub enum AuthenticationResult<T> {
 
 pub struct AuthenticationResponse {
     pub grant: OAuthGrant,
-    pub is_admin: bool,
+    pub permissions: AHashSet<Permission>,
     pub is_enterprise: bool,
 }
 
@@ -107,7 +107,7 @@ pub async fn oauth_authenticate(
             AuthenticationResult::TotpRequired => return AuthenticationResult::TotpRequired,
             AuthenticationResult::Error(err) => return AuthenticationResult::Error(err),
         };
-    let is_admin = response.is_admin;
+    let permissions = response.permissions;
     let is_enterprise = response.is_enterprise;
     match HttpRequest::post(format!("{base_url}/auth/token"))
         .with_raw_body(
@@ -127,7 +127,7 @@ pub async fn oauth_authenticate(
         Ok(OAuthResponse::Granted(grant)) => {
             AuthenticationResult::Success(AuthenticationResponse {
                 grant,
-                is_admin,
+                permissions,
                 is_enterprise,
             })
         }
@@ -156,11 +156,14 @@ pub async fn oauth_user_authentication(
         .send::<OAuthCodeResponse>()
         .await
     {
-        Ok(response) => AuthenticationResult::Success(response),
+        Ok(response) => AuthenticationResult::Success(response.legacy_admin()),
         Err(http::Error::Unauthorized) => AuthenticationResult::Error(
             Alert::warning("Incorrect username or password").with_timeout(Duration::from_secs(3)),
         ),
-        Err(http::Error::Forbidden) => {
+        Err(http::Error::Forbidden) => AuthenticationResult::Error(Alert::error(
+            "You are not authorized to access this service.",
+        )),
+        Err(http::Error::TotpRequired) => {
             // Password matched but TOTP required
             AuthenticationResult::TotpRequired
         }
@@ -187,7 +190,7 @@ pub async fn oauth_device_authentication(
         Err(http::Error::Unauthorized) => AuthenticationResult::Error(
             Alert::warning("Incorrect username or password").with_timeout(Duration::from_secs(3)),
         ),
-        Err(http::Error::Forbidden) => AuthenticationResult::TotpRequired,
+        Err(http::Error::TotpRequired) => AuthenticationResult::TotpRequired,
         Err(err) => AuthenticationResult::Error(Alert::from(err)),
     }
 }
@@ -220,26 +223,97 @@ pub async fn oauth_refresh_token(base_url: &str, refresh_token: &str) -> Option<
     }
 }
 
-pub fn use_authorization() -> RwSignal<AuthToken> {
-    expect_context::<RwSignal<AuthToken>>()
+pub fn use_authorization() -> RwSignal<AccessToken> {
+    expect_context::<RwSignal<AccessToken>>()
 }
 
-impl AuthToken {
-    pub fn is_logged_in(&self) -> bool {
-        !self.access_token.is_empty()
-    }
+impl OAuthCodeResponse {
+    pub fn legacy_admin(mut self) -> Self {
+        if self.is_admin && self.permissions.is_empty() {
+            for permission in [
+                Permission::Impersonate,
+                Permission::UnlimitedRequests,
+                Permission::UnlimitedUploads,
+                Permission::DeleteSystemFolders,
+                Permission::MessageQueueList,
+                Permission::MessageQueueGet,
+                Permission::MessageQueueUpdate,
+                Permission::MessageQueueDelete,
+                Permission::OutgoingReportList,
+                Permission::OutgoingReportGet,
+                Permission::OutgoingReportDelete,
+                Permission::IncomingReportList,
+                Permission::IncomingReportGet,
+                Permission::IncomingReportDelete,
+                Permission::SettingsList,
+                Permission::SettingsUpdate,
+                Permission::SettingsDelete,
+                Permission::SettingsReload,
+                Permission::IndividualList,
+                Permission::IndividualGet,
+                Permission::IndividualUpdate,
+                Permission::IndividualDelete,
+                Permission::IndividualCreate,
+                Permission::GroupList,
+                Permission::GroupGet,
+                Permission::GroupUpdate,
+                Permission::GroupDelete,
+                Permission::GroupCreate,
+                Permission::DomainList,
+                Permission::DomainGet,
+                Permission::DomainCreate,
+                Permission::DomainUpdate,
+                Permission::DomainDelete,
+                Permission::TenantList,
+                Permission::TenantGet,
+                Permission::TenantCreate,
+                Permission::TenantUpdate,
+                Permission::TenantDelete,
+                Permission::MailingListList,
+                Permission::MailingListGet,
+                Permission::MailingListCreate,
+                Permission::MailingListUpdate,
+                Permission::MailingListDelete,
+                Permission::RoleList,
+                Permission::RoleGet,
+                Permission::RoleCreate,
+                Permission::RoleUpdate,
+                Permission::RoleDelete,
+                Permission::PrincipalList,
+                Permission::PrincipalGet,
+                Permission::PrincipalCreate,
+                Permission::PrincipalUpdate,
+                Permission::PrincipalDelete,
+                Permission::BlobFetch,
+                Permission::PurgeBlobStore,
+                Permission::PurgeDataStore,
+                Permission::PurgeLookupStore,
+                Permission::PurgeAccount,
+                Permission::FtsReindex,
+                Permission::Undelete,
+                Permission::DkimSignatureCreate,
+                Permission::DkimSignatureGet,
+                Permission::UpdateSpamFilter,
+                Permission::UpdateWebadmin,
+                Permission::LogsView,
+                Permission::SieveRun,
+                Permission::Restart,
+                Permission::TracingList,
+                Permission::TracingGet,
+                Permission::TracingLive,
+                Permission::MetricsList,
+                Permission::MetricsLive,
+                Permission::Authenticate,
+                Permission::AuthenticateOauth,
+                Permission::EmailSend,
+                Permission::EmailReceive,
+                Permission::ManageEncryption,
+                Permission::ManagePasswords,
+            ] {
+                self.permissions.insert(permission);
+            }
+        }
 
-    pub fn is_admin(&self) -> bool {
-        self.is_admin && self.is_logged_in()
-    }
-
-    pub fn is_enterprise(&self) -> bool {
-        self.is_enterprise
-    }
-}
-
-impl AsRef<AuthToken> for AuthToken {
-    fn as_ref(&self) -> &AuthToken {
         self
     }
 }

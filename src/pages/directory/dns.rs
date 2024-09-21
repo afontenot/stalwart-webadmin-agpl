@@ -3,10 +3,10 @@
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
-
 use leptos::*;
 use leptos_router::{use_navigate, use_params_map};
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
 
 use crate::{
     components::{
@@ -23,7 +23,7 @@ use crate::{
         http::{self, HttpRequest},
         oauth::use_authorization,
     },
-    pages::List,
+    pages::{directory::Principal, List},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -34,8 +34,52 @@ struct DnsRecord {
     content: String,
 }
 
+fn format_zonefile(records: &[DnsRecord], domain: &str) -> String {
+    let formatted_records: Vec<[&str; 3]> = records
+        .iter()
+        .filter_map(|record| {
+            record.name.strip_suffix(domain).map(|name| {
+                if name.is_empty() {
+                    ["@", &record.typ, &record.content]
+                } else {
+                    [
+                        name.strip_suffix('.').unwrap_or(name),
+                        &record.typ,
+                        &record.content,
+                    ]
+                }
+            })
+        })
+        .collect();
+
+    let max_len = formatted_records.iter().fold([0, 0], |acc, x| {
+        [acc[0].max(x[0].len()), acc[1].max(x[1].len())]
+    });
+
+    formatted_records.iter().fold(String::new(), |acc, x| {
+        let key = format!(
+            "{}{: <width1$} IN {: <width2$}",
+            acc,
+            x[0],
+            x[1],
+            width1 = max_len[0],
+            width2 = max_len[1]
+        );
+        if x[1] == "TXT" {
+            x[2].as_bytes()
+                .chunks(255)
+                .fold(key, |acc, x| {
+                    format!("{} \"{}\"", acc, String::from_utf8_lossy(x))
+                })
+                .add("\n")
+        } else {
+            format!("{} {}\n", key, x[2])
+        }
+    })
+}
+
 #[component]
-pub fn DomainDisplay() -> impl IntoView {
+pub fn DnsDisplay() -> impl IntoView {
     let auth = use_authorization();
     let alert = use_alerts();
 
@@ -46,14 +90,17 @@ pub fn DomainDisplay() -> impl IntoView {
             let auth = auth.get_untracked();
 
             async move {
-                let result = HttpRequest::get(("/api/domain", &name))
+                let result = HttpRequest::get(("/api/dns/records", &name))
                     .with_authorization(&auth)
                     .send::<Vec<DnsRecord>>()
                     .await?;
                 let user_count = HttpRequest::get("/api/principal")
                     .with_authorization(&auth)
                     .with_parameter("filter", &name)
-                    .send::<List<String>>()
+                    .with_parameter("fields", "name")
+                    .with_parameter("count", "1")
+                    .with_parameter("types", "individual")
+                    .send::<List<Principal>>()
                     .await
                     .map(|r| r.total)
                     .unwrap_or_default();
@@ -74,7 +121,7 @@ pub fn DomainDisplay() -> impl IntoView {
                     Some(view! { <div></div> }.into_view())
                 }
                 Some(Err(http::Error::NotFound)) => {
-                    use_navigate()("/manage/directory/domains", Default::default());
+                    use_navigate()("/manage/directory/domain", Default::default());
                     Some(view! { <div></div> }.into_view())
                 }
                 Some(Err(err)) => {
@@ -87,6 +134,14 @@ pub fn DomainDisplay() -> impl IntoView {
                         .filter(|r| r.typ == "TXT" && r.content.contains("DKIM"))
                         .count()
                         .to_string();
+                    let zonefile = format_zonefile(
+                        &records,
+                        &format!(
+                            "{}.",
+                            params.get().get("id").map(|d| d.as_str()).unwrap_or_default(),
+                        ),
+                    );
+                    log::debug!("zomefile: {}", zonefile);
                     Some(
                         view! {
                             <Card>
@@ -135,6 +190,17 @@ pub fn DomainDisplay() -> impl IntoView {
                                             .collect_view()}
 
                                     </Table>
+                                    <div class="sm:col-span-12 pb-4 pt-10">
+                                        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                                            Zonefile
+                                        </h2>
+                                    </div>
+                                    <textarea
+                                        class="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
+                                        readonly=true
+                                        rows=20
+                                        prop:value=zonefile
+                                    ></textarea>
 
                                 </div>
 

@@ -9,7 +9,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use gloo_net::http::{Headers, Method, RequestBuilder};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::{oauth::AuthToken, url::UrlBuilder};
+use super::{url::UrlBuilder, AccessToken};
 
 pub struct HttpRequest {
     method: Method,
@@ -29,12 +29,24 @@ pub enum Response<T> {
 #[serde(tag = "error")]
 #[serde(rename_all = "camelCase")]
 pub enum ManagementApiError {
-    FieldAlreadyExists { field: String, value: String },
-    FieldMissing { field: String },
-    NotFound { item: String },
-    Unsupported { details: String },
+    FieldAlreadyExists {
+        field: String,
+        value: String,
+    },
+    FieldMissing {
+        field: String,
+    },
+    NotFound {
+        item: String,
+    },
+    Unsupported {
+        details: String,
+    },
     AssertFailed,
-    Other { details: String },
+    Other {
+        details: String,
+        reason: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +54,7 @@ pub enum Error {
     Unauthorized,
     Forbidden,
     NotFound,
+    TotpRequired,
     Network(String),
     Serializer { error: String, response: String },
     Server(ManagementApiError),
@@ -102,7 +115,7 @@ impl<'x> HttpRequest {
         self
     }
 
-    pub fn with_authorization(self, auth_token: impl AsRef<AuthToken>) -> Self {
+    pub fn with_authorization(self, auth_token: impl AsRef<AccessToken>) -> Self {
         let auth_token = auth_token.as_ref();
         let mut result = self.with_header(
             "Authorization",
@@ -114,7 +127,7 @@ impl<'x> HttpRequest {
         result
     }
 
-    pub fn with_base_url(mut self, auth_token: impl AsRef<AuthToken>) -> Self {
+    pub fn with_base_url(mut self, auth_token: impl AsRef<AccessToken>) -> Self {
         let auth_token = auth_token.as_ref();
         if !auth_token.base_url.is_empty() {
             self.url.prepend_path(auth_token.base_url.as_str());
@@ -211,10 +224,12 @@ impl<'x> HttpRequest {
         match response.status() {
             200..=299 => response.binary().await.map_err(Into::into),
             401 => Err(Error::Unauthorized),
+            402 => Err(Error::TotpRequired),
             403 => Err(Error::Forbidden),
             404 => Err(Error::NotFound),
             code => Err(Error::Server(ManagementApiError::Other {
-                details: format!("Invalid response code {code}: {}", response.status_text()),
+                details: format!("Invalid response code {code}"),
+                reason: response.status_text().into(),
             })),
         }
     }

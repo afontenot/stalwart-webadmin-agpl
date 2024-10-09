@@ -305,7 +305,15 @@ impl LayoutBuilder {
             .create("Cache")
             .route("/cache/edit")
             .insert(true)
-            // Cache
+            // Contact form
+            .create("Form submission")
+            .route("/form/edit")
+            .insert(true)
+            // Enterprise
+            .create("AI Models")
+            .route("/ai-models")
+            .insert(true)
+            // Enterprise
             .create("Enterprise")
             .route("/enterprise/edit")
             .insert(true)
@@ -331,6 +339,9 @@ impl LayoutBuilder {
             .insert(true)
             .create("OAuth")
             .route("/oauth/edit")
+            .insert(true)
+            .create("OpenID Connect")
+            .route("/openid/edit")
             .insert(true)
             .insert(true)
             // SMTP
@@ -462,9 +473,9 @@ impl LayoutBuilder {
             // Security
             .create("Security")
             .icon(view! { <IconHandRaised/> })
-            // Fail2ban
-            .create("Fail2ban")
-            .route("/fail2ban/edit")
+            // Threat Shield
+            .create("Automatic Ban")
+            .route("/auto-ban/edit")
             .insert(true)
             // Blocked IPs
             .create("Blocked IPs")
@@ -503,9 +514,16 @@ impl LayoutBuilder {
             .create("Settings")
             .route("/spam-settings/edit")
             .insert(true)
+            .create("Bayes classifier")
+            .route("/spam-bayes/edit")
+            .insert(true)
+            .create("LLM classifier")
+            .route("/spam-llm/edit")
+            .insert(true)
             .create("Scores")
             .route("/spam-scores")
             .insert(true)
+            .create("Domains")
             .create("Free domains")
             .route("/spam-free")
             .insert(true)
@@ -526,6 +544,7 @@ impl LayoutBuilder {
             .insert(true)
             .create("SPF/DKIM domains")
             .route("/spam-spdk")
+            .insert(true)
             .insert(true)
             .create("Spam traps")
             .route("/spam-trap")

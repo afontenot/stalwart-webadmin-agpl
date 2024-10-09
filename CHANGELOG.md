@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.1.18] - 2024-10-08
+
+## Added
+- 'Automatic Ban' section.
+- Support for 'External Account Binding' in ACME providers.
+
+### Changed
+
+### Fixed
+- Include nonce in OAuth code request.
+
+## [0.1.17] - 2024-10-07
+
+## Added
+- AI model management.
+- LLM Classifier settings.
+- S3 `max-retries` setting.
+
+### Changed
+
+### Fixed
+- Allow non-HTTPS `redirect-uri` for OAuth clients.
+- Viewport and autocapitalize fixes for mobile devices.
+- Fix error reporting in array fields (#25).
+
+## [0.1.16] - 2024-10-01
+
+## Added
+- OpenID Connect support.
+- API key and OAuth client management.
+- Form submission management.
+
+### Changed
+- Improved Permission management UI.
+
+### Fixed
+- Add permissions tab to group edit screen (stalwartlabs/mail-server#826)
+- Include account name in undelete pages (stalwartlabs/mail-server#808)
+- Include a Content-Type header when posting (#18).
+- Correctly set tenant limits.
+
 ## [0.1.15] - 2024-09-20
 
 ## Added

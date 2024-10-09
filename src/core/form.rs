@@ -188,6 +188,25 @@ impl FormData {
         self.errors.remove(id);
     }
 
+    pub fn array_push(&mut self, id: &str, value: impl Into<String>, unique: bool) {
+        let v = self
+            .values
+            .entry(id.to_string())
+            .or_insert_with(|| FormValue::Array(vec![]));
+        let value = value.into();
+
+        match v {
+            FormValue::Value(val) if !unique || val != &value => {
+                *v = FormValue::Array(vec![std::mem::take(val), value]);
+            }
+            FormValue::Array(arr) if !unique || !arr.contains(&value) => {
+                arr.push(value);
+            }
+            _ => (),
+        };
+        self.errors.remove(id);
+    }
+
     pub fn array_delete(&mut self, id: &str, idx: usize) {
         let left = self.values.get_mut(id).and_then(|v| match v {
             FormValue::Array(values) => {
@@ -203,21 +222,18 @@ impl FormData {
         self.errors.remove(id);
     }
 
-    pub fn array_push(&mut self, id: &str, value: impl Into<String>) {
-        let v = self
-            .values
-            .entry(id.to_string())
-            .or_insert_with(|| FormValue::Array(vec![]));
-
-        match v {
-            FormValue::Value(val) => {
-                *v = FormValue::Array(vec![std::mem::take(val), value.into()]);
+    pub fn array_delete_item(&mut self, id: &str, item: &str) {
+        let left = self.values.get_mut(id).and_then(|v| match v {
+            FormValue::Array(values) => {
+                values.retain(|v| v != item);
+                Some(values.len())
             }
-            FormValue::Array(arr) => {
-                arr.push(value.into());
-            }
-            _ => unreachable!(),
-        };
+            FormValue::Value(value) if value == item => Some(0),
+            _ => None,
+        });
+        if left == Some(0) {
+            self.values.remove(id);
+        }
         self.errors.remove(id);
     }
 
@@ -488,6 +504,8 @@ impl FormData {
                         ..
                     } => {
                         let mut total_values = 0;
+                        let mut has_errors = false;
+
                         for (idx, result) in self
                             .array_value(field.id)
                             .map(|v| check.check_value(v.to_string()))
@@ -511,34 +529,37 @@ impl FormData {
                                             error: err.to_string(),
                                         },
                                     );
+                                    has_errors = true;
                                 }
                             }
                         }
 
-                        for validator in &check.validators {
-                            match validator {
-                                Validator::Required => {
-                                    if total_values == 0 {
-                                        self.new_error(field.id, "This field is required");
+                        if !has_errors {
+                            for validator in &check.validators {
+                                match validator {
+                                    Validator::Required => {
+                                        if total_values == 0 {
+                                            self.new_error(field.id, "This field is required");
+                                        }
                                     }
-                                }
-                                Validator::MinItems(min) => {
-                                    if total_values < *min {
-                                        self.new_error(
-                                            field.id,
-                                            format!("At least {min} items are required"),
-                                        );
+                                    Validator::MinItems(min) => {
+                                        if total_values < *min {
+                                            self.new_error(
+                                                field.id,
+                                                format!("At least {min} items are required"),
+                                            );
+                                        }
                                     }
-                                }
-                                Validator::MaxItems(max) => {
-                                    if total_values > *max {
-                                        self.new_error(
-                                            field.id,
-                                            format!("At most {max} items are allowed"),
-                                        );
+                                    Validator::MaxItems(max) => {
+                                        if total_values > *max {
+                                            self.new_error(
+                                                field.id,
+                                                format!("At most {max} items are allowed"),
+                                            );
+                                        }
                                     }
+                                    _ => (),
                                 }
-                                _ => (),
                             }
                         }
                     }

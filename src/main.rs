@@ -176,6 +176,8 @@ pub fn App() -> impl IntoView {
                                                 Permission::TenantList,
                                                 Permission::DomainList,
                                                 Permission::MailingListList,
+                                                Permission::OauthClientList,
+                                                Permission::ApiKeyList,
                                             ],
                                         )
                                     },
@@ -201,6 +203,8 @@ pub fn App() -> impl IntoView {
                                                 Permission::TenantList,
                                                 Permission::DomainList,
                                                 Permission::MailingListList,
+                                                Permission::OauthClientList,
+                                                Permission::ApiKeyList,
                                             ],
                                         )
                                     },
@@ -513,6 +517,12 @@ impl LayoutBuilder {
             .create("Tenants")
             .route("/directory/tenants")
             .insert(permissions.has_access(Permission::TenantList))
+            .create("API Keys")
+            .route("/directory/api-keys")
+            .insert(permissions.has_access(Permission::ApiKeyList))
+            .create("OAuth Clients")
+            .route("/directory/oauth-clients")
+            .insert(permissions.has_access(Permission::OauthClientList))
             .insert(permissions.has_access_any(&[
                 Permission::IndividualList,
                 Permission::GroupList,
@@ -520,6 +530,8 @@ impl LayoutBuilder {
                 Permission::TenantList,
                 Permission::DomainList,
                 Permission::MailingListList,
+                Permission::OauthClientList,
+                Permission::ApiKeyList,
             ]))
             .create("Queues")
             .icon(view! { <IconQueueList/> })

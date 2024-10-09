@@ -305,33 +305,73 @@ impl Builder<Schemas, ()> {
             .list_fields(["_id"])
             .no_list_action(Action::Modify)
             .build()
-            // Fail2ban settings
-            .new_schema("fail2ban")
-            .new_field("server.fail2ban.authentication")
+            // Auto-ban settings
+            .new_schema("auto-ban")
+            .new_field("server.auto-ban.auth.rate")
             .label("Auth failures")
             .help("The maximum number of failed login attempts before the IP is banned")
             .typ(Type::Rate)
             .default("100/1d")
             .build()
-            .new_field("server.fail2ban.invalid-rcpt")
-            .label("Brute force")
-            .help("The maximum number of brute force attempts before the IP is banned")
+            .new_field("server.auto-ban.scan.rate")
+            .label("Scanning attempts")
+            .help(concat!(
+                "The maximum number of port scanning attempts before the IP is banned"
+            ))
+            .typ(Type::Rate)
+            .default("30/1d")
+            .build()
+            .new_field("server.auto-ban.abuse.rate")
+            .label("Abuse attempts")
+            .help(concat!(
+                "The maximum number of abuse attempts (relaying or failed ",
+                "RCPT TO attempts) before the IP is banned"
+            ))
             .typ(Type::Rate)
             .default("35/1d")
             .build()
-            .new_field("server.fail2ban.loitering")
+            .new_field("server.auto-ban.loiter.rate")
             .label("Loitering")
             .help("The maximum number of loitering disconnections before the IP is banned")
             .typ(Type::Rate)
             .default("150/1d")
             .build()
+            .new_field("server.auto-ban.scan.paths")
+            .label("HTTP banned paths")
+            .help(concat!(
+                "The paths that will trigger an immediate ban if accessed. ",
+                "Each path should be a glob expression"
+            ))
+            .typ(Type::Array)
+            .input_check([Transformer::Trim], [])
+            .default(
+                &[
+                    "*.php*",
+                    "*.cgi*",
+                    "*.asp*",
+                    "*/wp-*",
+                    "*/php*",
+                    "*/cgi-bin*",
+                    "*xmlrpc*",
+                    "*../*",
+                    "*/..*",
+                    "*joomla*",
+                    "*wordpress*",
+                    "*drupal*",
+                ][..],
+            )
+            .build()
             .new_form_section()
-            .title("Fail2ban settings")
+            .title("Automatic banning")
             .fields([
-                "server.fail2ban.authentication",
-                "server.fail2ban.invalid-rcpt",
-                "server.fail2ban.loitering",
+                "server.auto-ban.auth.rate",
+                "server.auto-ban.abuse.rate",
+                "server.auto-ban.loiter.rate",
             ])
+            .build()
+            .new_form_section()
+            .title("Port scanning ban")
+            .fields(["server.auto-ban.scan.rate", "server.auto-ban.scan.paths"])
             .build()
             .build()
             // Clustering
@@ -547,6 +587,248 @@ impl Builder<Schemas, ()> {
             .title("Enterprise")
             .fields(["enterprise.license-key", "enterprise.logo-url"])
             .build()
+            .build()
+            // Contact form settings
+            .new_schema("form")
+            .new_field("form.deliver-to")
+            .label("Recipients")
+            .help(concat!(
+                "List of local e-mail addresses to deliver the contact form to.",
+            ))
+            .typ(Type::Array)
+            .input_check([Transformer::Trim], [Validator::IsEmail])
+            .build()
+            .new_field("form.email.field")
+            .label("E-mail field")
+            .help(concat!(
+                "The name of the field in the contact form that contains the ",
+                "e-mail address of the sender."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [Validator::IsEmail])
+            .build()
+            .new_field("form.name.field")
+            .label("Name field")
+            .help(concat!(
+                "The name of the field in the contact form that contains the ",
+                "name of the sender."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [])
+            .build()
+            .new_field("form.subject.field")
+            .label("Subject field")
+            .help(concat!(
+                "The name of the field in the contact form that contains the ",
+                "subject of the message."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [])
+            .build()
+            .new_field("form.honey-pot.field")
+            .label("Honey Pot field")
+            .help(concat!(
+                "The name of the field in the contact form that is used as a ",
+                "honey pot to catch spam bots."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [])
+            .build()
+            .new_field("form.email.default")
+            .label("E-mail default")
+            .help(concat!(
+                "The default e-mail address to use when the sender does not ",
+                "provide one."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [Validator::IsEmail])
+            .default("postmaster@localhost")
+            .build()
+            .new_field("form.subject.default")
+            .label("Subject default")
+            .help(concat!(
+                "The default subject to use when the sender does not ",
+                "provide one."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [])
+            .default("Contact form submission")
+            .build()
+            .new_field("form.name.default")
+            .label("Name default")
+            .help(concat!(
+                "The default name to use when the sender does not ",
+                "provide one."
+            ))
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [])
+            .default("Anonymous")
+            .build()
+            .new_field("form.rate-limit")
+            .label("Rate limit")
+            .help(concat!(
+                "Maximum number of contact form submissions that can be made ",
+                "in a timeframe by a given IP address."
+            ))
+            .default("5/1h")
+            .typ(Type::Rate)
+            .build()
+            .new_field("form.max-size")
+            .label("Max Size")
+            .help(concat!(
+                "Maximum size of the contact form submission in bytes."
+            ))
+            .typ(Type::Size)
+            .default("102400")
+            .build()
+            .new_field("form.enable")
+            .label("Enable form submissions")
+            .help(concat!("Whether to enable contact form submissions."))
+            .typ(Type::Boolean)
+            .default("false")
+            .build()
+            .new_field("form.validate-domain")
+            .label("Validate email domain")
+            .help(concat!(
+                "Whether to validate the domain of the sender's email address."
+            ))
+            .typ(Type::Boolean)
+            .default("true")
+            .build()
+            .new_form_section()
+            .title("Form submission settings")
+            .fields(["form.deliver-to", "form.enable"])
+            .build()
+            .new_form_section()
+            .title("Fields")
+            .fields([
+                "form.email.field",
+                "form.name.field",
+                "form.subject.field",
+                "form.honey-pot.field",
+            ])
+            .build()
+            .new_form_section()
+            .title("Security")
+            .fields(["form.rate-limit", "form.max-size", "form.validate-domain"])
+            .build()
+            .new_form_section()
+            .title("Defaults")
+            .fields([
+                "form.email.default",
+                "form.name.default",
+                "form.subject.default",
+            ])
+            .build()
+            .build()
+            // AI models
+            .new_schema("ai-models")
+            .prefix("enterprise.ai")
+            .suffix("url")
+            .names("model", "models")
+            .new_id_field()
+            .label("Model Id")
+            .help("Unique identifier for this AI model")
+            .enterprise_feature()
+            .build()
+            .new_field("url")
+            .label("Endpoint URL")
+            .help(concat!("URL of the OpenAI compatible endpoint"))
+            .placeholder("https://api.openai.com/v1/chat/completions")
+            .typ(Type::Input)
+            .input_check([Transformer::Trim], [Validator::Required, Validator::IsUrl])
+            .enterprise_feature()
+            .build()
+            .new_field("allow-invalid-certs")
+            .label("Allow Invalid Certs")
+            .help(concat!(
+                "Whether Stalwart should connect to an ",
+                "endpoint that has an invalid TLS certificate"
+            ))
+            .default("false")
+            .typ(Type::Boolean)
+            .input_check([], [Validator::Required])
+            .enterprise_feature()
+            .build()
+            .new_field("timeout")
+            .label("Timeout")
+            .help(concat!(
+                "Maximum amount of time that Stalwart will wait for a response ",
+                "from this endpoint"
+            ))
+            .default("2m")
+            .typ(Type::Duration)
+            .input_check([], [Validator::Required])
+            .enterprise_feature()
+            .build()
+            .new_field("auth.token")
+            .label("API token")
+            .help(concat!(
+                "The API token used to authenticate with the AI model endpoint"
+            ))
+            .typ(Type::Secret)
+            .enterprise_feature()
+            .build()
+            .new_field("headers")
+            .typ(Type::Array)
+            .label("HTTP Headers")
+            .help("The headers to be sent with requests")
+            .enterprise_feature()
+            .build()
+            .new_field("default-temperature")
+            .label("Temperature")
+            .help(concat!(
+                "The temperature of the AI model, which controls the randomness ",
+                "of the output. A higher temperature will produce more random output."
+            ))
+            .typ(Type::Input)
+            .default("0.7")
+            .input_check(
+                [Transformer::Trim],
+                [
+                    Validator::MinValue(NumberType::Float(0.0)),
+                    Validator::MaxValue(NumberType::Float(1.0)),
+                ],
+            )
+            .enterprise_feature()
+            .build()
+            .new_field("model")
+            .label("Model")
+            .help(concat!("The name of the AI model to use.",))
+            .typ(Type::Input)
+            .placeholder("gpt-4")
+            .input_check([Transformer::Trim], [Validator::Required])
+            .enterprise_feature()
+            .build()
+            .new_field("type")
+            .label("Type")
+            .help("API type")
+            .typ(Type::Select {
+                typ: SelectType::Single,
+                source: Source::Static(&[("chat", "Chat Completion"), ("text", "Text Generation")]),
+            })
+            .default("chat")
+            .enterprise_feature()
+            .build()
+            .new_form_section()
+            .title("AI Endpoint settings")
+            .fields(["_id", "url", "allow-invalid-certs"])
+            .build()
+            .new_form_section()
+            .title("Model")
+            .fields(["type", "model"])
+            .build()
+            .new_form_section()
+            .title("Authentication")
+            .fields(["auth.token"])
+            .build()
+            .new_form_section()
+            .title("Options")
+            .fields(["timeout", "headers"])
+            .build()
+            .list_title("AI Models")
+            .list_subtitle("Manage AI Models")
+            .list_fields(["_id", "model", "type"])
             .build()
     }
 }

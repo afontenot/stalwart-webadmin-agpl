@@ -923,6 +923,10 @@ select {
   margin-inline-start: 0.25rem;
 }
 
+.ms-2 {
+  margin-inline-start: 0.5rem;
+}
+
 .ms-3 {
   margin-inline-start: 0.75rem;
 }
@@ -1319,6 +1323,11 @@ select {
        column-gap: 1.25rem;
 }
 
+.gap-x-6 {
+  -moz-column-gap: 1.5rem;
+       column-gap: 1.5rem;
+}
+
 .gap-y-3 {
   row-gap: 0.75rem;
 }
@@ -1406,6 +1415,10 @@ select {
 
 .text-wrap {
   text-wrap: wrap;
+}
+
+.text-nowrap {
+  text-wrap: nowrap;
 }
 
 .rounded {
